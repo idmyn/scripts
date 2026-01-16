@@ -1,12 +1,19 @@
 {
   "name": "scripts",
-  "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "build": "bun run build.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
+    "@stricli/core": "^1.2.5",
+    "zod": "^4.3.5"
   }
 }

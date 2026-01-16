@@ -1,15 +1,12 @@
 # scripts
 
-To install dependencies:
+personal CLI scripts, mostly for github PR workflows to try and remove some papercuts in my jj workflow
+
+## Install
 
 ```bash
 bun install
+bun run build
 ```
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.3.0. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+This compiles the scripts and symlinks them to `~/.local/bin/`.
