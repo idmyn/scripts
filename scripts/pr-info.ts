@@ -5,123 +5,155 @@ import {
   type CommandContext,
   run as runApp,
 } from "@stricli/core";
+import { z } from "zod";
 import { $ } from "bun";
 import process from "node:process";
 import { getRepoInfo, getBranchName } from "$lib/vcs";
 import { getPrCommentsForBranch } from "$lib/github";
+import { defineRemoteCommand, logResult } from "$lib/remoteCommand";
 
-const description = buildCommand({
-  async func(this: CommandContext) {
+const description = defineRemoteCommand({
+  name: "pr-description",
+  schema: z.undefined(),
+  server: async () => {
     const { owner, repo } = await getRepoInfo();
     const branchName = await getBranchName();
-
-    await $`gh pr view --repo ${owner}/${repo} ${branchName}`;
+    const output = await $`gh pr view --repo ${owner}/${repo} ${branchName}`
+      .nothrow()
+      .quiet();
+    if (output.exitCode !== 0) throw new Error(output.stderr.toString());
+    return output.stdout.toString();
   },
-  parameters: {},
-  docs: {
-    brief: "Show PR description for current branch",
-  },
+  client: (sendCommand) =>
+    buildCommand({
+      async func(this: CommandContext) {
+        const result = await sendCommand(undefined);
+        logResult(result);
+      },
+      parameters: {},
+      docs: {
+        brief: "Show PR description for current branch",
+      },
+    }),
 });
 
-const diff = buildCommand({
-  async func(this: CommandContext) {
+const diff = defineRemoteCommand({
+  name: "pr-diff",
+  schema: z.undefined(),
+  server: async () => {
     const { owner, repo } = await getRepoInfo();
     const branchName = await getBranchName();
-
-    await $`gh pr diff --repo ${owner}/${repo} ${branchName}`;
+    const output = await $`gh pr diff --repo ${owner}/${repo} ${branchName}`
+      .nothrow()
+      .quiet();
+    if (output.exitCode !== 0) throw new Error(output.stderr.toString());
+    return output.stdout.toString();
   },
-  parameters: {},
-  docs: {
-    brief: "Show PR diff for current branch",
-  },
+  client: (sendCommand) =>
+    buildCommand({
+      async func(this: CommandContext) {
+        const result = await sendCommand(undefined);
+        logResult(result);
+      },
+      parameters: {},
+      docs: {
+        brief: "Show PR diff for current branch",
+      },
+    }),
 });
 
-type CommentsFlags = {
-  json: boolean;
-};
+const commentsSchema = z.object({ json: z.boolean() });
 
-const comments = buildCommand({
-  async func(this: CommandContext, flags: CommentsFlags) {
+const comments = defineRemoteCommand({
+  name: "pr-comments",
+  schema: commentsSchema,
+  server: async (flags) => {
     const { owner, repo } = await getRepoInfo();
     const branchName = await getBranchName();
-
-    const prComments = await getPrCommentsForBranch(owner, repo, branchName);
+    const rawComments = await getPrCommentsForBranch(owner, repo, branchName);
 
     if (flags.json) {
-      console.log(prComments);
-    } else {
-      // Parse and format nicely
-      const data = JSON.parse(prComments);
-      const pr = data.data.repository.pullRequest;
+      return rawComments;
+    }
 
-      // Display general comments
-      if (pr.comments.nodes.length > 0) {
-        console.log("💬 General Comments:\n");
-        for (const comment of pr.comments.nodes) {
-          console.log(
-            `  @${comment.author.login} (${new Date(comment.createdAt).toLocaleString()}):`,
-          );
-          console.log(`  ${comment.body}\n`);
-        }
-      }
+    // Parse and format nicely
+    const data = JSON.parse(rawComments);
+    const pr = data.data.repository.pullRequest;
+    const lines: string[] = [];
 
-      // Display review threads
-      if (pr.reviewThreads.nodes.length > 0) {
-        console.log("🧵 Review Threads:\n");
-        for (const thread of pr.reviewThreads.nodes) {
-          const status = thread.isResolved ? "✅ Resolved" : "⏳ Unresolved";
-          const outdated = thread.isOutdated ? " (outdated)" : "";
-          console.log(`  ${status}${outdated}`);
-
-          for (const comment of thread.comments.nodes) {
-            if (comment.isMinimized) continue;
-
-            const location = comment.path
-              ? ` [${comment.path}:${comment.line}]`
-              : "";
-            console.log(
-              `    @${comment.author.login}${location} (${new Date(comment.createdAt).toLocaleString()}):`,
-            );
-            console.log(`    ${comment.body}\n`);
-          }
-        }
-      }
-
-      if (
-        pr.comments.nodes.length === 0 &&
-        pr.reviewThreads.nodes.length === 0
-      ) {
-        console.log("No comments found on this PR.");
+    // Display general comments
+    if (pr.comments.nodes.length > 0) {
+      lines.push("💬 General Comments:\n");
+      for (const comment of pr.comments.nodes) {
+        lines.push(
+          `  @${comment.author.login} (${new Date(comment.createdAt).toLocaleString()}):`,
+        );
+        lines.push(`  ${comment.body}\n`);
       }
     }
+
+    // Display review threads
+    if (pr.reviewThreads.nodes.length > 0) {
+      lines.push("🧵 Review Threads:\n");
+      for (const thread of pr.reviewThreads.nodes) {
+        const status = thread.isResolved ? "✅ Resolved" : "⏳ Unresolved";
+        const outdated = thread.isOutdated ? " (outdated)" : "";
+        lines.push(`  ${status}${outdated}`);
+
+        for (const comment of thread.comments.nodes) {
+          if (comment.isMinimized) continue;
+
+          const location = comment.path
+            ? ` [${comment.path}:${comment.line}]`
+            : "";
+          lines.push(
+            `    @${comment.author.login}${location} (${new Date(comment.createdAt).toLocaleString()}):`,
+          );
+          lines.push(`    ${comment.body}\n`);
+        }
+      }
+    }
+
+    if (pr.comments.nodes.length === 0 && pr.reviewThreads.nodes.length === 0) {
+      lines.push("No comments found on this PR.");
+    }
+
+    return lines.join("\n");
   },
-  parameters: {
-    flags: {
-      json: {
-        kind: "boolean",
-        brief: "Output raw JSON",
-        default: false,
+  client: (sendCommand) =>
+    buildCommand({
+      async func(this: CommandContext, flags: { json: boolean }) {
+        const result = await sendCommand({ json: flags.json });
+        logResult(result);
       },
-    },
-  },
-  docs: {
-    brief: "Show PR comments for current branch",
-  },
+      parameters: {
+        flags: {
+          json: {
+            kind: "boolean",
+            brief: "Output raw JSON",
+            default: false,
+          },
+        },
+      },
+      docs: {
+        brief: "Show PR comments for current branch",
+      },
+    }),
 });
 
-const root = buildRouteMap({
+export const prInfoCommands = [description, diff, comments];
+export const prInfoRoutes = buildRouteMap({
   routes: {
-    description,
-    diff,
-    comments,
+    description: description.command,
+    diff: diff.command,
+    comments: comments.command,
   },
   docs: {
     brief: "GitHub PR information commands",
   },
 });
 
-const app = buildApplication(root, {
-  name: "pr-info",
-});
-
-await runApp(app, process.argv.slice(2), { process });
+// const app = buildApplication(prInfoRoutes, {
+//   name: "pr-info",
+// });
+// await runApp(app, process.argv.slice(2), { process });
