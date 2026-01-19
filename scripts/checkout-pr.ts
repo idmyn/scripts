@@ -1,7 +1,7 @@
 import { $ } from "bun";
 import { z } from "zod";
 import { Temporal } from "@js-temporal/polyfill";
-import { getRepoInfo } from "./lib/vcs.ts";
+import { getRepoInfo } from "$lib/vcs";
 
 const fetchPromise = $`jj git fetch`.quiet();
 
@@ -31,8 +31,7 @@ const { repoArg } = await getRepoInfo();
 
 const prs = PR.array().parse(
   JSON.parse(
-    await $`gh pr list ${repoArg} --search=${updatedAtFilter} --json="author,title,updatedAt,headRefOid"`
-      .text(),
+    await $`gh pr list ${repoArg} --search=${updatedAtFilter} --json="author,title,updatedAt,headRefOid"`.text(),
   ),
 );
 
@@ -80,7 +79,9 @@ const list = entries
 // Pipe the list into fzf. We hide the branch column while keeping it in the
 // line so we can recover it after selection.
 const selectedLine = (
-  await $`fzf --ansi --delimiter="\t" --with-nth=1 < ${new Response(list)}`.nothrow().text()
+  await $`fzf --ansi --delimiter="\t" --with-nth=1 < ${new Response(list)}`
+    .nothrow()
+    .text()
 ).trim();
 
 if (selectedLine.length === 0) {

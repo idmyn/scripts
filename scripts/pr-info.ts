@@ -7,8 +7,8 @@ import {
 } from "@stricli/core";
 import { $ } from "bun";
 import process from "node:process";
-import { getRepoInfo, getBranchName } from "./lib/vcs.ts";
-import { getPrCommentsForBranch } from "./lib/github.ts";
+import { getRepoInfo, getBranchName } from "$lib/vcs";
+import { getPrCommentsForBranch } from "$lib/github";
 
 const description = buildCommand({
   async func(this: CommandContext) {
@@ -53,16 +53,18 @@ const comments = buildCommand({
       // Parse and format nicely
       const data = JSON.parse(prComments);
       const pr = data.data.repository.pullRequest;
-      
+
       // Display general comments
       if (pr.comments.nodes.length > 0) {
         console.log("💬 General Comments:\n");
         for (const comment of pr.comments.nodes) {
-          console.log(`  @${comment.author.login} (${new Date(comment.createdAt).toLocaleString()}):`);
+          console.log(
+            `  @${comment.author.login} (${new Date(comment.createdAt).toLocaleString()}):`,
+          );
           console.log(`  ${comment.body}\n`);
         }
       }
-      
+
       // Display review threads
       if (pr.reviewThreads.nodes.length > 0) {
         console.log("🧵 Review Threads:\n");
@@ -70,18 +72,25 @@ const comments = buildCommand({
           const status = thread.isResolved ? "✅ Resolved" : "⏳ Unresolved";
           const outdated = thread.isOutdated ? " (outdated)" : "";
           console.log(`  ${status}${outdated}`);
-          
+
           for (const comment of thread.comments.nodes) {
             if (comment.isMinimized) continue;
-            
-            const location = comment.path ? ` [${comment.path}:${comment.line}]` : "";
-            console.log(`    @${comment.author.login}${location} (${new Date(comment.createdAt).toLocaleString()}):`);
+
+            const location = comment.path
+              ? ` [${comment.path}:${comment.line}]`
+              : "";
+            console.log(
+              `    @${comment.author.login}${location} (${new Date(comment.createdAt).toLocaleString()}):`,
+            );
             console.log(`    ${comment.body}\n`);
           }
         }
       }
-      
-      if (pr.comments.nodes.length === 0 && pr.reviewThreads.nodes.length === 0) {
+
+      if (
+        pr.comments.nodes.length === 0 &&
+        pr.reviewThreads.nodes.length === 0
+      ) {
         console.log("No comments found on this PR.");
       }
     }
