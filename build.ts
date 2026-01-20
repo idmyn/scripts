@@ -20,12 +20,4 @@ for (const script of scripts) {
 
   await $`bun build --compile --no-compile-autoload-dotenv ${source} --outfile ${out}`;
   await $`chmod +x ${out} && ln -sf ${out} ${destination}`;
-
-  // Cross-compile safetools for Linux (used in agentbox container)
-  if (script === "safetools") {
-    const linuxOut = join(projectDir, "dist", `${script}-linux`);
-    const linuxDestination = join(homedir(), ".local", "bin", `${script}-linux`);
-    await $`bun build --compile --target=bun-linux-x64 ${source} --outfile ${linuxOut}`;
-    await $`ln -sf ${linuxOut} ${linuxDestination}`;
-  }
 }

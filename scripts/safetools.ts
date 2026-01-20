@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { buildApplication, buildRouteMap, run as runApp } from "@stricli/core";
 import process from "node:process";
 import { buildServer } from "$lib/remoteCommand";
