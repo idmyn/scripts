@@ -30,6 +30,6 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN ~/.local/bin/mise use -g bun@latest
 
 ENV HOME=/home/agentbox
-ENV PATH="/home/agentbox/.local/bin:$PATH"
+ENV PATH="/home/agentbox/.local/share/mise/shims:/home/agentbox/.local/bin:$PATH"
 WORKDIR /workspace
 ENTRYPOINT ["/entrypoint.sh"]

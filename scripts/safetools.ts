@@ -113,7 +113,7 @@ const buildServer = (remoteCommands: RemoteCommand[]) => {
         .object({ command: z.string(), args: z.unknown() })
         .parse(await req.json());
 
-      console.log(`Received: ${JSON.stringify(message)}`);
+      // console.log(`Received: ${JSON.stringify(message)}`);
 
       const serverFn = serverCommandRegistry[message.command];
 
@@ -450,26 +450,7 @@ export const serverHandler = buildServer([...prInfoCommands]);
 // main
 // ============================================================================
 
-const MODE = process.env.MODE;
-const PORT = process.env.PORT;
-
-if (MODE === "server" && !PORT) {
-  console.error(
-    "You need to provide a PORT env variable to run safetools in server mode",
-  );
-  process.exit(1);
-}
-
-if (MODE === "server") {
-  console.log(`Server listening on port ${PORT}`);
-
-  Bun.serve({
-    port: PORT,
-    fetch: buildServer([...prInfoCommands]),
-  });
-
-  await new Promise(() => {});
-} else {
+if (import.meta.main) {
   const root = buildRouteMap({
     routes: {
       "pr-info": prInfoRoutes,
