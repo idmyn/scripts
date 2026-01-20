@@ -6,6 +6,8 @@ import {
   run as runApp,
 } from "@stricli/core";
 import { $ } from "bun";
+import { homedir } from "os";
+import { join } from "path";
 import process from "node:process";
 
 // adapted from https://github.com/anthropics/claude-code/blob/main/.devcontainer/Dockerfile
@@ -83,8 +85,9 @@ const run = buildCommand<{}, RunArgs, CommandContext>({
     const cwd = process.cwd();
     const command = args.length > 0 ? args[0] : "/bin/bash";
     const commandArgs = args.slice(1);
+    const safetoolsPath = join(homedir(), ".local", "bin", "safetools-linux");
 
-    await $`docker run --rm -it --network=host -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
+    await $`docker run --rm -it --network=host -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -v ${safetoolsPath}:/usr/local/bin/safetools:ro -w /workspace agentbox:latest ${command} ${commandArgs}`;
   },
   parameters: {
     positional: {
