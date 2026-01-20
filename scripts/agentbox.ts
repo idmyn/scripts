@@ -16,7 +16,7 @@ const run = buildCommand<{}, RunArgs, CommandContext>({
     const command = args.length > 0 ? args[0] : "/bin/bash";
     const commandArgs = args.slice(1);
 
-    await $`docker run --rm -it --network=host -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -v ${safetoolsPath}:/usr/local/bin/safetools:ro -w /workspace agentbox:latest ${command} ${commandArgs}`;
+    await $`docker run --rm -it --network=host -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
   },
   parameters: {
     positional: {
