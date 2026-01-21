@@ -6,7 +6,14 @@ ENV TZ="$TZ"
 # System tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates curl less git ripgrep jq fd-find unzip \
+  ncurses-term locales \
+  && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Terminal environment
+ENV TERM=xterm-256color
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 
 # Create agentbox user
 RUN groupadd -r agentbox && useradd -r -g agentbox agentbox
