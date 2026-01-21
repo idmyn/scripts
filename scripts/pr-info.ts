@@ -10,7 +10,7 @@ import { $ } from "bun";
 import process from "node:process";
 import { getRepoInfo, getBranchName } from "$lib/vcs";
 import { getPrCommentsForBranch } from "$lib/github";
-import { defineRemoteCommand, logResult } from "$lib/remoteCommand";
+import { defineRemoteCommand } from "$lib/remoteCommand";
 
 const description = defineRemoteCommand({
   name: "pr-description",
@@ -28,11 +28,11 @@ const description = defineRemoteCommand({
     buildCommand({
       async func(this: CommandContext) {
         const result = await sendCommand(undefined);
-        logResult(result);
+        console.log(result);
       },
       parameters: {},
       docs: {
-        brief: "Show PR description for current branch",
+        brief: "Get PR description for current branch",
       },
     }),
 });
@@ -53,11 +53,11 @@ const diff = defineRemoteCommand({
     buildCommand({
       async func(this: CommandContext) {
         const result = await sendCommand(undefined);
-        logResult(result);
+        console.log(result);
       },
       parameters: {},
       docs: {
-        brief: "Show PR diff for current branch",
+        brief: "Get PR diff for current branch",
       },
     }),
 });
@@ -124,7 +124,7 @@ const comments = defineRemoteCommand({
     buildCommand({
       async func(this: CommandContext, flags: { json: boolean }) {
         const result = await sendCommand({ json: flags.json });
-        logResult(result);
+        console.log(result);
       },
       parameters: {
         flags: {
@@ -136,7 +136,7 @@ const comments = defineRemoteCommand({
         },
       },
       docs: {
-        brief: "Show PR comments for current branch",
+        brief: "Get PR comments for current branch",
       },
     }),
 });

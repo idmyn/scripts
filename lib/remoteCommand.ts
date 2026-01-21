@@ -1,31 +1,25 @@
 import { z, ZodType } from "zod";
 import { buildCommand } from "@stricli/core";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-const PORT = process.env.SAFETOOLS_PORT;
-const SHOULD_RUN_LOCALLY = !PORT;
-
-type ServerResponse =
-  | {
-      status: "error";
-      message: string;
-    }
-  | {
-      status: "ok";
-      result: unknown;
-    };
-
-async function sendCommand(
-  command: string,
-  args: unknown,
-): Promise<ServerResponse> {
-  const message = { command, args };
-  const res = await fetch(`http://localhost:${PORT}/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(message),
-  });
-  return (await res.json()) as ServerResponse;
+// Extract raw shape from a Zod object schema, or return undefined for non-object schemas
+function getInputSchemaForMcp<TSchema extends ZodType>(
+  schema: TSchema,
+): Record<string, ZodType> | undefined {
+  if (schema instanceof z.ZodObject) {
+    return schema.shape as Record<string, ZodType>;
+  }
+  return undefined;
 }
+
+export type McpToolConfig = {
+  name: string;
+  config: {
+    description: string;
+    inputSchema: Record<string, ZodType> | undefined;
+  };
+  handler: (...args: unknown[]) => Promise<CallToolResult>;
+};
 
 export function defineRemoteCommand<TSchema extends ZodType>({
   name,
@@ -37,95 +31,43 @@ export function defineRemoteCommand<TSchema extends ZodType>({
   schema: TSchema;
   server: (args: z.infer<TSchema>) => string | Promise<string>;
   client: (
-    sendCommand: (args: z.infer<TSchema>) => Promise<ServerResponse>,
+    sendCommand: (args: z.infer<TSchema>) => Promise<string>,
   ) => ReturnType<typeof buildCommand>;
-}) {
-  const serverFn = async (args: unknown): Promise<ServerResponse> => {
-    try {
-      const result = await server(schema.parse(args));
-      return {
-        status: "ok",
-        result,
-      };
-    } catch (err) {
-      return {
-        status: "error",
-        message: `Command execution failed. ${err}`,
-      };
-    }
-  };
-  const command = client((args) => {
-    if (SHOULD_RUN_LOCALLY) {
-      return serverFn(args);
-    }
-    return sendCommand(name, args);
-  });
-  return { name, command, serverFn };
-}
-
-export const logResult = (response: ServerResponse) => {
-  if (response.status === "ok") {
-    console.log(response.result);
-  } else {
-    console.error(response.message);
-  }
-};
-
-type RemoteCommand = {
+}): {
   name: string;
-  serverFn: (args: unknown) => Promise<ServerResponse>;
-};
-
-export const buildServer = (remoteCommands: RemoteCommand[]) => {
-  const serverCommandRegistry = remoteCommands.reduce<
-    Record<string, RemoteCommand["serverFn"]>
-  >((acc, cur) => {
-    acc[cur.name] = cur.serverFn;
-    return acc;
-  }, {});
-
-  return async (req: Request) => {
-    if (req.method !== "POST") {
-      return Response.json(
-        {
-          status: "error",
-          message: "Method not allowed",
-        } satisfies ServerResponse,
-        { status: 405 },
-      );
-    }
-
-    try {
-      const message = z
-        .object({ command: z.string(), args: z.unknown() })
-        .parse(await req.json());
-
-      console.log(`Received: ${JSON.stringify(message)}`);
-
-      const serverFn = serverCommandRegistry[message.command];
-
-      // Validate command exists
-      if (!serverFn) {
-        return Response.json(
-          {
-            status: "error",
-            message: `Unknown command: ${message.command}`,
-          } satisfies ServerResponse,
-          { status: 400 },
-        );
-      }
-
-      const response = await serverFn(message.args);
-
-      return Response.json(response);
-    } catch (err) {
-      return Response.json(
-        {
-          status: "error",
-          message: `Invalid JSON: ${err}`,
-        } satisfies ServerResponse,
-        { status: 400 },
-      );
-    }
+  command: ReturnType<typeof buildCommand>;
+  mcpTool: McpToolConfig;
+} {
+  // sendCommand now just calls server directly (no HTTP, no ServerResponse wrapper)
+  const sendCommand = async (args: z.infer<TSchema>): Promise<string> => {
+    return server(schema.parse(args));
   };
-};
+
+  const command = client(sendCommand);
+
+  // MCP tool config - use raw shape for object schemas, undefined otherwise
+  const inputSchema = getInputSchemaForMcp(schema);
+
+  // Create handler with correct signature based on whether we have input or not
+  // MCP SDK expects (extra) => ... for no-arg tools, (args, extra) => ... for tools with args
+  const handler = async (
+    ...handlerArgs: unknown[]
+  ): Promise<CallToolResult> => {
+    // When inputSchema is undefined, handlerArgs[0] is extra
+    // When inputSchema is defined, handlerArgs[0] is args and handlerArgs[1] is extra
+    const args = inputSchema ? (handlerArgs[0] as z.infer<TSchema>) : undefined;
+    const result = await server(schema.parse(args));
+    return { content: [{ type: "text" as const, text: result }] };
+  };
+
+  const mcpTool: McpToolConfig = {
+    name,
+    config: {
+      description: command.brief,
+      inputSchema,
+    },
+    handler,
+  };
+
+  return { name, command, mcpTool };
+}
