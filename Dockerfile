@@ -13,10 +13,6 @@ RUN groupadd -r agentbox && useradd -r -g agentbox agentbox
 RUN mkdir -p /workspace /home/agentbox /home/agentbox-template && \
   chown -R agentbox:agentbox /workspace /home/agentbox /home/agentbox-template
 
-# Add safetools script
-COPY scripts/safetools.ts /usr/local/bin/safetools
-RUN chmod +x /usr/local/bin/safetools
-
 # Entrypoint to preserve $HOME content
 RUN printf '#!/bin/bash\nif [ -z "$(ls -A /home/agentbox 2>/dev/null)" ]; then\n  cp -a /home/agentbox-template/. /home/agentbox/\nfi\nexec "$@"\n' > /entrypoint.sh && \
   chmod +x /entrypoint.sh

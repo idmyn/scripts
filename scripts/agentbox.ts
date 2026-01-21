@@ -1,6 +1,7 @@
 import {
   buildApplication,
   buildCommand,
+  buildRouteMap,
   type CommandContext,
   run as runApp,
 } from "@stricli/core";
@@ -33,13 +34,67 @@ for (const cmd of prInfoCommands) {
 // Session management
 const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>();
 
-const run = buildCommand<{}, RunArgs, CommandContext>({
+async function updateMcpConfig() {
+  const cwd = process.cwd();
+  const mcpConfigPath = `${cwd}/.mcp.json`;
+  const safetoolsConfig = {
+    type: "http",
+    url: `http://localhost:${SAFETOOLS_PORT}/mcp`,
+  };
+
+  let mcpConfig: { mcpServers: Record<string, unknown> } = { mcpServers: {} };
+  const mcpFile = Bun.file(mcpConfigPath);
+  if (await mcpFile.exists()) {
+    mcpConfig = await mcpFile.json();
+    mcpConfig.mcpServers ??= {};
+  }
+  mcpConfig.mcpServers.safetools = safetoolsConfig;
+  await Bun.write(mcpConfigPath, JSON.stringify(mcpConfig, null, 2) + "\n");
+}
+
+function startMcpServer() {
+  return Bun.serve({
+    port: SAFETOOLS_PORT,
+    async fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname !== "/mcp") {
+        return new Response("Not found", { status: 404 });
+      }
+
+      if (req.method === "POST") {
+        const sessionId = req.headers.get("mcp-session-id") || randomUUID();
+        let transport = sessions.get(sessionId);
+
+        if (!transport) {
+          transport = new WebStandardStreamableHTTPServerTransport({
+            sessionIdGenerator: () => sessionId,
+          });
+          sessions.set(sessionId, transport);
+          await mcpServer.connect(transport);
+        }
+
+        return transport.handleRequest(req);
+      }
+
+      return new Response("Method not allowed", { status: 405 });
+    },
+  });
+}
+
+const runCommand = buildCommand<{}, RunArgs, CommandContext>({
   async func(this: CommandContext, _flags, ...args: string[]) {
     const cwd = process.cwd();
     const command = args.length > 0 ? args[0] : "/bin/bash";
     const commandArgs = args.slice(1);
 
-    await $`docker run --rm -it --network=host -e SAFETOOLS_PORT=${SAFETOOLS_PORT} -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
+    await updateMcpConfig();
+    const server = startMcpServer();
+
+    try {
+      await $`docker run --rm -it --network=host -e SAFETOOLS_PORT=${SAFETOOLS_PORT} -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
+    } finally {
+      server.stop();
+    }
   },
   parameters: {
     positional: {
@@ -57,39 +112,46 @@ const run = buildCommand<{}, RunArgs, CommandContext>({
   },
 });
 
-const app = buildApplication(run, {
+const serverCommand = buildCommand<{}, [], CommandContext>({
+  async func(this: CommandContext) {
+    await updateMcpConfig();
+    const server = startMcpServer();
+
+    console.log(`MCP server running on http://localhost:${SAFETOOLS_PORT}/mcp`);
+    console.log("Press Ctrl+C to stop");
+
+    await new Promise<void>((resolve) => {
+      process.on("SIGINT", () => {
+        server.stop();
+        resolve();
+      });
+      process.on("SIGTERM", () => {
+        server.stop();
+        resolve();
+      });
+    });
+  },
+  parameters: {},
+  docs: {
+    brief: "run only the MCP server without starting a container",
+  },
+});
+
+const routes = buildRouteMap({
+  routes: {
+    run: runCommand,
+    server: serverCommand,
+  },
+  docs: {
+    brief: "agentbox - run commands in a sandboxed container with MCP tools",
+  },
+});
+
+const app = buildApplication(routes, {
   name: "agentbox",
   scanner: {
     allowArgumentEscapeSequence: true,
   },
 });
 
-const server = Bun.serve({
-  port: SAFETOOLS_PORT,
-  async fetch(req) {
-    const url = new URL(req.url);
-    if (url.pathname !== "/mcp") {
-      return new Response("Not found", { status: 404 });
-    }
-
-    if (req.method === "POST") {
-      const sessionId = req.headers.get("mcp-session-id") || randomUUID();
-      let transport = sessions.get(sessionId);
-
-      if (!transport) {
-        transport = new WebStandardStreamableHTTPServerTransport({
-          sessionIdGenerator: () => sessionId,
-        });
-        sessions.set(sessionId, transport);
-        await mcpServer.connect(transport);
-      }
-
-      return transport.handleRequest(req);
-    }
-
-    return new Response("Method not allowed", { status: 405 });
-  },
-});
-
 await runApp(app, process.argv.slice(2), { process });
-server.stop();
