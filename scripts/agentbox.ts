@@ -91,7 +91,7 @@ const runCommand = buildCommand<{}, RunArgs, CommandContext>({
     const server = startMcpServer();
 
     try {
-      await $`docker run --rm -it --network=host -e SAFETOOLS_PORT=${SAFETOOLS_PORT} -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
+      await $`docker run --rm -it -e TERM=xterm-ghostty --network=host -e SAFETOOLS_PORT=${SAFETOOLS_PORT} -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
     } finally {
       server.stop();
     }

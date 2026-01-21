@@ -6,12 +6,17 @@ ENV TZ="$TZ"
 # System tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates curl less git ripgrep jq fd-find unzip \
-  ncurses-term locales \
+  ncurses-term ncurses-bin locales \
   && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Terminal environment
-ENV TERM=xterm-256color
+# # Fall back to xterm-256color since Ghostty's terminfo isn't widely available yet
+# ENV TERM=xterm-256color
+
+COPY ghostty.terminfo /tmp/ghostty.terminfo
+RUN tic -x /tmp/ghostty.terminfo && rm /tmp/ghostty.terminfo
+
+# Locale environment
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
