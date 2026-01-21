@@ -153,7 +153,9 @@ export const prInfoRoutes = buildRouteMap({
   },
 });
 
-// const app = buildApplication(prInfoRoutes, {
-//   name: "pr-info",
-// });
-// await runApp(app, process.argv.slice(2), { process });
+if (import.meta.main) {
+  const app = buildApplication(prInfoRoutes, {
+    name: "pr-info",
+  });
+  await runApp(app, process.argv.slice(2), { process });
+}
