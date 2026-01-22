@@ -10,6 +10,7 @@ import process from "node:process";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { prInfoCommands } from "./pr-info";
+import { linearCommands } from "./linear-tools";
 import { randomUUID } from "node:crypto";
 
 const dockerfile = (terminfo: string) => `
@@ -67,7 +68,7 @@ const mcpServer = new McpServer({
 });
 
 // Register all tools
-for (const cmd of prInfoCommands) {
+for (const cmd of [...prInfoCommands, ...linearCommands]) {
   mcpServer.registerTool(
     cmd.mcpTool.name,
     cmd.mcpTool.config,
