@@ -50,6 +50,9 @@ RUN curl https://mise.run | sh
 RUN echo 'eval "$(~/.local/bin/mise activate --shims bash)"' >> ~/.bashrc
 RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN ~/.local/bin/mise use -g bun@latest
+RUN ~/.local/bin/mise use -g node@22.14.0
+RUN ~/.local/bin/mise use -g pnpm@10.27.0
+
 
 ENV HOME=/home/agentbox
 ENV PATH="/home/agentbox/.local/share/mise/shims:/home/agentbox/.local/bin:$PATH"
@@ -133,18 +136,17 @@ type BuildFlags = {
 const build = buildCommand<BuildFlags, [], CommandContext>({
   async func(this: CommandContext, flags: BuildFlags) {
     const cwd = process.cwd();
-    
+
     // Generate fresh terminfo from current Ghostty installation
     const terminfo = await $`infocmp -x xterm-ghostty`.text();
     const dockerfileContent = dockerfile(terminfo);
-    
+
     // Build using stdin dockerfile
     if (flags["no-cache"]) {
       await $`echo ${dockerfileContent} | docker build --no-cache -t agentbox:latest -f - ${cwd}`;
     } else {
       await $`echo ${dockerfileContent} | docker build -t agentbox:latest -f - ${cwd}`;
     }
-    await $`mkdir -p ~/.local/share/agentbox/home`;
   },
   parameters: {
     flags: {
@@ -170,7 +172,7 @@ const runCommand = buildCommand<{}, RunArgs, CommandContext>({
     const server = startMcpServer();
 
     try {
-      await $`docker run --rm -it -e TERM=xterm-ghostty --network=host -e SAFETOOLS_PORT=${SAFETOOLS_PORT} -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
+      await $`docker run --rm -it --network=host -e TERM=xterm-ghostty -v ~/.local/share/agentbox/home:/home/agentbox -v ${cwd}:/workspace -w /workspace agentbox:latest ${command} ${commandArgs}`;
     } finally {
       server.stop();
     }
