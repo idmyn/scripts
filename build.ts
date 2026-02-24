@@ -18,6 +18,11 @@ for (const script of scripts) {
   const out = join(projectDir, "dist", script);
   const destination = join(homedir(), ".local", "bin", script);
 
-  await $`bun build --compile --no-compile-autoload-dotenv ${source} --outfile ${out}`;
+  const defines: string[] = [];
+  if (script === "maps" && process.env.GOOGLE_MAPS_API_KEY) {
+    defines.push(`--define`, `process.env.GOOGLE_MAPS_API_KEY=${JSON.stringify(process.env.GOOGLE_MAPS_API_KEY)}`);
+  }
+
+  await $`bun build --compile --no-compile-autoload-dotenv ${defines} ${source} --outfile ${out}`;
   await $`chmod +x ${out} && ln -sf ${out} ${destination}`;
 }
